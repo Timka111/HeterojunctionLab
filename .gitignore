@@ -1,0 +1,9 @@
+# C++ and Qt build outputs
+build/
+.qtcreator/
+*.user
+*.user.*
+*.o
+*.obj
+Makefile*
+.qmake.stash

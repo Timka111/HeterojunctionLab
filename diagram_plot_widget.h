@@ -46,4 +46,4 @@ private:
     QPointF toDataCoords(const QPoint& widgetPos, const QRectF& plotRect, double xMin, double xMax, double yMin, double yMax) const;
 };
 
-#endif 
+#endif // DIAGRAM_PLOT_WIDGET_H

@@ -8,16 +8,60 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QSplitter>
+#include <QIcon>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
-    setWindowTitle("Моделирование энергетических диаграмм гетеропереходов (Модель Андерсона)");
-    resize(1200, 800);
+    setWindowTitle("HeterojunctionLab — Аналитическое моделирование зонных диаграмм гетероструктур");
+
+    QIcon appIcon(":/app_icon.png");
+    if (appIcon.isNull()) appIcon = QIcon("app_icon.png");
+    if (appIcon.isNull()) appIcon = QIcon("app_icon.ico");
+    setWindowIcon(appIcon);
 
     setupUI();
     populatePresets();
-    onResetToLab1Clicked(); 
+    onResetToLab1Clicked();
+
+    showMaximized();
+}
+
+QFrame* MainWindow::createKpiCard(const QString& title, QLabel*& valLabel, const QString& unit, const QString& accentColor) {
+    QFrame *card = new QFrame(this);
+    card->setStyleSheet(QString(
+        "QFrame {"
+        "  background-color: #262732;"
+        "  border: 1px solid #3B3C48;"
+        "  border-top: 3px solid %1;"
+        "  border-radius: 6px;"
+        "}"
+    ).arg(accentColor));
+
+    QVBoxLayout *layout = new QVBoxLayout(card);
+    layout->setContentsMargins(12, 8, 12, 8);
+    layout->setSpacing(2);
+
+    QLabel *lblTitle = new QLabel(title, card);
+    lblTitle->setStyleSheet("color: #9A99A8; font-size: 11px; font-weight: bold;");
+
+    QHBoxLayout *valLayout = new QHBoxLayout();
+    valLayout->setSpacing(6);
+
+    valLabel = new QLabel("0.00", card);
+    valLabel->setStyleSheet(QString("color: %1; font-size: 20px; font-weight: bold;").arg(accentColor));
+
+    QLabel *lblUnit = new QLabel(unit, card);
+    lblUnit->setStyleSheet("color: #727180; font-size: 11px; font-weight: bold; padding-top: 4px;");
+
+    valLayout->addWidget(valLabel);
+    valLayout->addWidget(lblUnit);
+    valLayout->addStretch();
+
+    layout->addWidget(lblTitle);
+    layout->addLayout(valLayout);
+
+    return card;
 }
 
 void MainWindow::setupUI() {
@@ -25,18 +69,88 @@ void MainWindow::setupUI() {
     setCentralWidget(centralWidget);
 
     QHBoxLayout *mainLayout = new QHBoxLayout(centralWidget);
-    mainLayout->setContentsMargins(10, 10, 10, 10);
-    mainLayout->setSpacing(10);
+    mainLayout->setContentsMargins(12, 12, 12, 12);
+    mainLayout->setSpacing(12);
 
     QWidget *leftPanel = new QWidget(this);
     QVBoxLayout *leftLayout = new QVBoxLayout(leftPanel);
     leftLayout->setContentsMargins(0, 0, 0, 0);
+    leftLayout->setSpacing(8);
+
+    QFrame *actionsCard = new QFrame(leftPanel);
+    actionsCard->setStyleSheet(
+        "QFrame {"
+        "  background-color: #262732;"
+        "  border: 1px solid #3B3C48;"
+        "  border-radius: 6px;"
+        "  padding: 8px;"
+        "}"
+    );
+    QVBoxLayout *actionsLayout = new QVBoxLayout(actionsCard);
+    actionsLayout->setContentsMargins(6, 6, 6, 6);
+    actionsLayout->setSpacing(6);
+
+    m_btnCalculate = new QPushButton("Рассчитать и построить диаграммы");
+    m_btnCalculate->setCursor(Qt::PointingHandCursor);
+    m_btnCalculate->setStyleSheet(
+        "QPushButton {"
+        "  background: #689F8F;"
+        "  color: #16171D;"
+        "  border: none;"
+        "  font-weight: bold;"
+        "  font-size: 13px;"
+        "  padding: 10px;"
+        "  border-radius: 4px;"
+        "}"
+        "QPushButton:hover { background: #7BB5A4; }"
+        "QPushButton:pressed { background: #558778; }"
+    );
+
+    QHBoxLayout *subActions = new QHBoxLayout();
+    subActions->setSpacing(6);
+
+    m_btnReset = new QPushButton("Сброс (InP / Cu2O)");
+    m_btnReset->setCursor(Qt::PointingHandCursor);
+    m_btnReset->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #31323D;"
+        "  color: #E8E8EE;"
+        "  border: 1px solid #7E749B;"
+        "  border-radius: 4px;"
+        "  padding: 6px 10px;"
+        "  font-size: 11px;"
+        "}"
+        "QPushButton:hover { background-color: #3F3E50; }"
+    );
+
+    m_btnExport = new QPushButton("Экспорт в PNG");
+    m_btnExport->setCursor(Qt::PointingHandCursor);
+    m_btnExport->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #31323D;"
+        "  color: #E8E8EE;"
+        "  border: 1px solid #689F8F;"
+        "  border-radius: 4px;"
+        "  padding: 6px 10px;"
+        "  font-size: 11px;"
+        "}"
+        "QPushButton:hover { background-color: #35423E; }"
+    );
+
+    subActions->addWidget(m_btnReset);
+    subActions->addWidget(m_btnExport);
+
+    actionsLayout->addWidget(m_btnCalculate);
+    actionsLayout->addLayout(subActions);
+
+    leftLayout->addWidget(actionsCard);
 
     QScrollArea *scrollArea = new QScrollArea(this);
     scrollArea->setWidgetResizable(true);
     QWidget *scrollContent = new QWidget(scrollArea);
     QVBoxLayout *scrollLayout = new QVBoxLayout(scrollContent);
-    scrollLayout->setSpacing(12);
+    scrollLayout->setContentsMargins(0, 0, 8, 0);
+    scrollLayout->setSpacing(10);
 
     auto createDoubleSpin = [](double min, double max, double val, int decimals, double step) {
         QDoubleSpinBox *sb = new QDoubleSpinBox();
@@ -48,11 +162,28 @@ void MainWindow::setupUI() {
     };
 
     QGroupBox *groupMat1 = new QGroupBox("Материал 1 (слева, x < 0)", scrollContent);
+    groupMat1->setStyleSheet(
+        "QGroupBox {"
+        "  background-color: #262732;"
+        "  border: 1px solid #3B3C48;"
+        "  border-top: 3px solid #689F8F;"
+        "  border-radius: 6px;"
+        "  margin-top: 10px;"
+        "  padding-top: 10px;"
+        "}"
+        "QGroupBox::title { color: #689F8F; font-weight: bold; }"
+    );
     QGridLayout *gridMat1 = new QGridLayout(groupMat1);
+    gridMat1->setHorizontalSpacing(8);
+    gridMat1->setVerticalSpacing(5);
+
+    m_comboType1 = new QComboBox();
+    m_comboType1->addItem("Полупроводник");
+    m_comboType1->addItem("Металл / Проводник");
 
     m_comboPreset1 = new QComboBox();
     m_editName1 = new QLineEdit("InP");
-    m_spinEg1 = createDoubleSpin(0.1, 10.0, 1.35, 3, 0.05);
+    m_spinEg1 = createDoubleSpin(0.0, 10.0, 1.35, 3, 0.05);
     m_spinChi1 = createDoubleSpin(0.1, 10.0, 5.34, 3, 0.05);
     m_editNa1 = new QLineEdit("5.2e19");
     m_spinMh1 = createDoubleSpin(0.01, 10.0, 0.64, 3, 0.01);
@@ -60,31 +191,50 @@ void MainWindow::setupUI() {
     m_spinEps1 = createDoubleSpin(1.0, 50.0, 12.5, 2, 0.5);
 
     int r = 0;
-    gridMat1->addWidget(new QLabel("Быстрый выбор:"), r, 0);
-    gridMat1->addWidget(m_comboPreset1, r++, 1);
-    gridMat1->addWidget(new QLabel("Название:"), r, 0);
-    gridMat1->addWidget(m_editName1, r++, 1);
-    gridMat1->addWidget(new QLabel("Eg (ширина зоны), эВ:"), r, 0);
-    gridMat1->addWidget(m_spinEg1, r++, 1);
-    gridMat1->addWidget(new QLabel("χ (сродство κ), эВ:"), r, 0);
-    gridMat1->addWidget(m_spinChi1, r++, 1);
-    gridMat1->addWidget(new QLabel("Na (концентрация), см⁻³:"), r, 0);
-    gridMat1->addWidget(m_editNa1, r++, 1);
-    gridMat1->addWidget(new QLabel("mh (масса дырок, ·m_e):"), r, 0);
-    gridMat1->addWidget(m_spinMh1, r++, 1);
-    gridMat1->addWidget(new QLabel("me (масса электр., ·m_e):"), r, 0);
-    gridMat1->addWidget(m_spinMe1, r++, 1);
-    gridMat1->addWidget(new QLabel("ε (диэл. проницаемость):"), r, 0);
-    gridMat1->addWidget(m_spinEps1, r++, 1);
+    gridMat1->addWidget(new QLabel("Тип:"), r, 0);
+    gridMat1->addWidget(m_comboType1, r++, 1, 1, 3);
+    gridMat1->addWidget(new QLabel("Пресет:"), r, 0);
+    gridMat1->addWidget(m_comboPreset1, r++, 1, 1, 3);
+    gridMat1->addWidget(new QLabel("Имя:"), r, 0);
+    gridMat1->addWidget(m_editName1, r++, 1, 1, 3);
+    gridMat1->addWidget(new QLabel("Eg (эВ):"), r, 0);
+    gridMat1->addWidget(m_spinEg1, r, 1);
+    gridMat1->addWidget(new QLabel("χ (эВ):"), r, 2);
+    gridMat1->addWidget(m_spinChi1, r++, 3);
+    gridMat1->addWidget(new QLabel("Концентр. (см⁻³):"), r, 0);
+    gridMat1->addWidget(m_editNa1, r++, 1, 1, 3);
+    gridMat1->addWidget(new QLabel("mh (m₀):"), r, 0);
+    gridMat1->addWidget(m_spinMh1, r, 1);
+    gridMat1->addWidget(new QLabel("me (m₀):"), r, 2);
+    gridMat1->addWidget(m_spinMe1, r++, 3);
+    gridMat1->addWidget(new QLabel("Диэлектр. ε:"), r, 0);
+    gridMat1->addWidget(m_spinEps1, r++, 1, 1, 3);
 
     scrollLayout->addWidget(groupMat1);
 
     QGroupBox *groupMat2 = new QGroupBox("Материал 2 (справа, x > 0)", scrollContent);
+    groupMat2->setStyleSheet(
+        "QGroupBox {"
+        "  background-color: #262732;"
+        "  border: 1px solid #3B3C48;"
+        "  border-top: 3px solid #7E749B;"
+        "  border-radius: 6px;"
+        "  margin-top: 10px;"
+        "  padding-top: 10px;"
+        "}"
+        "QGroupBox::title { color: #7E749B; font-weight: bold; }"
+    );
     QGridLayout *gridMat2 = new QGridLayout(groupMat2);
+    gridMat2->setHorizontalSpacing(8);
+    gridMat2->setVerticalSpacing(5);
+
+    m_comboType2 = new QComboBox();
+    m_comboType2->addItem("Полупроводник");
+    m_comboType2->addItem("Металл / Проводник");
 
     m_comboPreset2 = new QComboBox();
     m_editName2 = new QLineEdit("Cu2O");
-    m_spinEg2 = createDoubleSpin(0.1, 10.0, 2.17, 3, 0.05);
+    m_spinEg2 = createDoubleSpin(0.0, 10.0, 2.17, 3, 0.05);
     m_spinChi2 = createDoubleSpin(0.1, 10.0, 3.20, 3, 0.05);
     m_editNa2 = new QLineEdit("3.0e18");
     m_spinMh2 = createDoubleSpin(0.01, 10.0, 0.58, 3, 0.01);
@@ -92,71 +242,68 @@ void MainWindow::setupUI() {
     m_spinEps2 = createDoubleSpin(1.0, 50.0, 7.5, 2, 0.5);
 
     r = 0;
-    gridMat2->addWidget(new QLabel("Быстрый выбор:"), r, 0);
-    gridMat2->addWidget(m_comboPreset2, r++, 1);
-    gridMat2->addWidget(new QLabel("Название:"), r, 0);
-    gridMat2->addWidget(m_editName2, r++, 1);
-    gridMat2->addWidget(new QLabel("Eg (ширина зоны), эВ:"), r, 0);
-    gridMat2->addWidget(m_spinEg2, r++, 1);
-    gridMat2->addWidget(new QLabel("χ (сродство κ), эВ:"), r, 0);
-    gridMat2->addWidget(m_spinChi2, r++, 1);
-    gridMat2->addWidget(new QLabel("Na (концентрация), см⁻³:"), r, 0);
-    gridMat2->addWidget(m_editNa2, r++, 1);
-    gridMat2->addWidget(new QLabel("mh (масса дырок, ·m_e):"), r, 0);
-    gridMat2->addWidget(m_spinMh2, r++, 1);
-    gridMat2->addWidget(new QLabel("me (масса электр., ·m_e):"), r, 0);
-    gridMat2->addWidget(m_spinMe2, r++, 1);
-    gridMat2->addWidget(new QLabel("ε (диэл. проницаемость):"), r, 0);
-    gridMat2->addWidget(m_spinEps2, r++, 1);
+    gridMat2->addWidget(new QLabel("Тип:"), r, 0);
+    gridMat2->addWidget(m_comboType2, r++, 1, 1, 3);
+    gridMat2->addWidget(new QLabel("Пресет:"), r, 0);
+    gridMat2->addWidget(m_comboPreset2, r++, 1, 1, 3);
+    gridMat2->addWidget(new QLabel("Имя:"), r, 0);
+    gridMat2->addWidget(m_editName2, r++, 1, 1, 3);
+    gridMat2->addWidget(new QLabel("Eg (эВ):"), r, 0);
+    gridMat2->addWidget(m_spinEg2, r, 1);
+    gridMat2->addWidget(new QLabel("χ (эВ):"), r, 2);
+    gridMat2->addWidget(m_spinChi2, r++, 3);
+    gridMat2->addWidget(new QLabel("Концентр. (см⁻³):"), r, 0);
+    gridMat2->addWidget(m_editNa2, r++, 1, 1, 3);
+    gridMat2->addWidget(new QLabel("mh (m₀):"), r, 0);
+    gridMat2->addWidget(m_spinMh2, r, 1);
+    gridMat2->addWidget(new QLabel("me (m₀):"), r, 2);
+    gridMat2->addWidget(m_spinMe2, r++, 3);
+    gridMat2->addWidget(new QLabel("Диэлектр. ε:"), r, 0);
+    gridMat2->addWidget(m_spinEps2, r++, 1, 1, 3);
 
     scrollLayout->addWidget(groupMat2);
 
     QGroupBox *groupEnv = new QGroupBox("Условия эксперимента", scrollContent);
+    groupEnv->setStyleSheet("QGroupBox { background-color: #262732; border: 1px solid #3B3C48; border-radius: 6px; margin-top: 8px; padding-top: 8px; } QGroupBox::title { color: #A8A7B6; }");
     QGridLayout *gridEnv = new QGridLayout(groupEnv);
     m_spinTemp = createDoubleSpin(10.0, 1000.0, 300.0, 1, 10.0);
-    gridEnv->addWidget(new QLabel("Температура T, К:"), 0, 0);
+    gridEnv->addWidget(new QLabel("Температура T (К):"), 0, 0);
     gridEnv->addWidget(m_spinTemp, 0, 1);
     scrollLayout->addWidget(groupEnv);
 
-    m_btnCalculate = new QPushButton("▶ Рассчитать и построить");
-    m_btnCalculate->setStyleSheet("background-color: #2980B9; color: white; font-weight: bold; padding: 8px; font-size: 13px; border-radius: 4px;");
-
-    m_btnReset = new QPushButton("↺ Вариант Лаб 1 (InP / Cu2O)");
-    m_btnReset->setStyleSheet("padding: 5px;");
-
-    m_btnExport = new QPushButton("💾 Экспорт графика в PNG");
-    m_btnExport->setStyleSheet("padding: 5px;");
-
-    scrollLayout->addWidget(m_btnCalculate);
-    scrollLayout->addWidget(m_btnReset);
-    scrollLayout->addWidget(m_btnExport);
-    scrollLayout->addStretch();
-
     scrollArea->setWidget(scrollContent);
     leftLayout->addWidget(scrollArea);
-    leftPanel->setFixedWidth(340);
+    leftPanel->setFixedWidth(360);
 
-    QSplitter *rightSplitter = new QSplitter(Qt::Vertical, this);
+    QWidget *rightContainer = new QWidget(this);
+    QVBoxLayout *rightLayout = new QVBoxLayout(rightContainer);
+    rightLayout->setContentsMargins(0, 0, 0, 0);
+    rightLayout->setSpacing(8);
+
+    QHBoxLayout *kpiLayout = new QHBoxLayout();
+    kpiLayout->setSpacing(8);
+
+    kpiLayout->addWidget(createKpiCard("Разрыв зоны Ec (ΔEc)", m_kpiEcVal, "эВ", "#E67E22"));
+    kpiLayout->addWidget(createKpiCard("Разрыв зоны Ev (ΔEv)", m_kpiEvVal, "эВ", "#689F8F"));
+    kpiLayout->addWidget(createKpiCard("Контактный потенциал (φ₀)", m_kpiPhi0Val, "эВ", "#7E749B"));
+    kpiLayout->addWidget(createKpiCard("Ширина ОПЗ (Xd)", m_kpiXdVal, "нм", "#F1C40F"));
+
+    rightLayout->addLayout(kpiLayout);
 
     m_tabPlots = new QTabWidget(this);
     m_plotContact = new DiagramPlotWidget(this);
-    m_plotContact->setTitle("Энергетическая зонная диаграмма гетероперехода в контакте");
+    m_plotContact->setTitle("Энергетическая диаграмма гетероперехода в контакте");
 
     m_plotIsolated = new DiagramPlotWidget(this);
-    m_plotIsolated->setTitle("Энергетическая диаграмма изолированных полупроводников до контакта");
+    m_plotIsolated->setTitle("Энергетическая диаграмма изолированных материалов до контакта");
 
-    m_tabPlots->addTab(m_plotContact, "1. В контакте (термодинамическое равновесие)");
-    m_tabPlots->addTab(m_plotIsolated, "2. До контакта (относительно уровня вакуума E₀)");
+    m_plotBlocks = new BandBlocksWidget(this);
 
-    rightSplitter->addWidget(m_tabPlots);
-
-    QGroupBox *groupResults = new QGroupBox("Результаты физических расчетов гетероструктуры", this);
-    QVBoxLayout *resultsLayout = new QVBoxLayout(groupResults);
-    resultsLayout->setContentsMargins(6, 6, 6, 6);
+    m_plotPotential = new PotentialPlotWidget(this);
 
     m_tableResults = new QTableWidget(this);
     m_tableResults->setColumnCount(4);
-    m_tableResults->setHorizontalHeaderLabels({"Параметр", "Обозначение", "Значение", "Ед. изм."});
+    m_tableResults->setHorizontalHeaderLabels({"Параметр", "Обозначение", "Значение", "Единицы измерения"});
     m_tableResults->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     m_tableResults->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     m_tableResults->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
@@ -164,22 +311,43 @@ void MainWindow::setupUI() {
     m_tableResults->verticalHeader()->setVisible(false);
     m_tableResults->setAlternatingRowColors(true);
     m_tableResults->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_tableResults->setFixedHeight(220);
 
-    resultsLayout->addWidget(m_tableResults);
-    rightSplitter->addWidget(groupResults);
+    m_tabPlots->addTab(m_plotContact, "1. Зонная диаграмма в контакте");
+    m_tabPlots->addTab(m_plotIsolated, "2. Диаграмма зон до контакта");
+    m_tabPlots->addTab(m_plotBlocks, "3. Классическая зонная структура (Блоки)");
+    m_tabPlots->addTab(m_plotPotential, "4. Распределение потенциала и поля в ОПЗ");
+    m_tabPlots->addTab(m_tableResults, "5. Сводная таблица расчетов");
 
-    rightSplitter->setStretchFactor(0, 3);
-    rightSplitter->setStretchFactor(1, 1);
+    rightLayout->addWidget(m_tabPlots);
 
     mainLayout->addWidget(leftPanel);
-    mainLayout->addWidget(rightSplitter);
+    mainLayout->addWidget(rightContainer);
 
+    connect(m_comboType1, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::onType1Changed);
+    connect(m_comboType2, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::onType2Changed);
     connect(m_comboPreset1, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::onPreset1Changed);
     connect(m_comboPreset2, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::onPreset2Changed);
     connect(m_btnCalculate, &QPushButton::clicked, this, &MainWindow::onCalculateClicked);
     connect(m_btnReset, &QPushButton::clicked, this, &MainWindow::onResetToLab1Clicked);
     connect(m_btnExport, &QPushButton::clicked, this, &MainWindow::onExportPlotClicked);
+}
+
+void MainWindow::onType1Changed(int index) {
+    bool isMetal = (index == 1);
+    m_spinEg1->setValue(isMetal ? 0.0 : 1.35);
+    m_spinEg1->setEnabled(!isMetal);
+    if (isMetal) {
+        m_editNa1->setText("5.00e+22");
+    }
+}
+
+void MainWindow::onType2Changed(int index) {
+    bool isMetal = (index == 1);
+    m_spinEg2->setValue(isMetal ? 0.0 : 2.17);
+    m_spinEg2->setEnabled(!isMetal);
+    if (isMetal) {
+        m_editNa2->setText("5.00e+22");
+    }
 }
 
 void MainWindow::populatePresets() {
@@ -195,6 +363,7 @@ void MainWindow::populatePresets() {
 
 void MainWindow::applyMaterialToInputs(int materialNum, const MaterialParams& mat) {
     if (materialNum == 1) {
+        m_comboType1->setCurrentIndex(mat.isMetal ? 1 : 0);
         m_editName1->setText(mat.name.split(" ").first());
         m_spinEg1->setValue(mat.Eg);
         m_spinChi1->setValue(mat.chi);
@@ -203,6 +372,7 @@ void MainWindow::applyMaterialToInputs(int materialNum, const MaterialParams& ma
         m_spinMe1->setValue(mat.me);
         m_spinEps1->setValue(mat.eps);
     } else {
+        m_comboType2->setCurrentIndex(mat.isMetal ? 1 : 0);
         m_editName2->setText(mat.name.split(" ").first());
         m_spinEg2->setValue(mat.Eg);
         m_spinChi2->setValue(mat.chi);
@@ -216,16 +386,18 @@ void MainWindow::applyMaterialToInputs(int materialNum, const MaterialParams& ma
 MaterialParams MainWindow::readMaterialInputs(int materialNum) {
     MaterialParams mat;
     if (materialNum == 1) {
+        mat.isMetal = (m_comboType1->currentIndex() == 1);
         mat.name = m_editName1->text().trimmed();
-        mat.Eg = m_spinEg1->value();
+        mat.Eg = mat.isMetal ? 0.0 : m_spinEg1->value();
         mat.chi = m_spinChi1->value();
         mat.Na = m_editNa1->text().trimmed().toDouble();
         mat.mh = m_spinMh1->value();
         mat.me = m_spinMe1->value();
         mat.eps = m_spinEps1->value();
     } else {
+        mat.isMetal = (m_comboType2->currentIndex() == 1);
         mat.name = m_editName2->text().trimmed();
-        mat.Eg = m_spinEg2->value();
+        mat.Eg = mat.isMetal ? 0.0 : m_spinEg2->value();
         mat.chi = m_spinChi2->value();
         mat.Na = m_editNa2->text().trimmed().toDouble();
         mat.mh = m_spinMh2->value();
@@ -248,9 +420,8 @@ void MainWindow::onPreset2Changed(int index) {
 }
 
 void MainWindow::onResetToLab1Clicked() {
-
-    m_comboPreset1->setCurrentIndex(1); 
-    m_comboPreset2->setCurrentIndex(2); 
+    m_comboPreset1->setCurrentIndex(1);
+    m_comboPreset2->setCurrentIndex(2);
     m_spinTemp->setValue(300.0);
     onCalculateClicked();
 }
@@ -261,11 +432,16 @@ void MainWindow::onCalculateClicked() {
     double T = m_spinTemp->value();
 
     if (m1.Na <= 0.0 || m2.Na <= 0.0) {
-        QMessageBox::warning(this, "Ошибка ввода", "Концентрация примесей Na должна быть больше нуля.");
+        QMessageBox::warning(this, "Ошибка ввода", "Концентрация примесей должна быть больше нуля.");
         return;
     }
 
     CalculationResults res = HeterojunctionModel::calculate(m1, m2, T);
+
+    m_kpiEcVal->setText(QString::number(res.Delta_Ec, 'f', 3));
+    m_kpiEvVal->setText(QString::number(res.Delta_Ev, 'f', 3));
+    m_kpiPhi0Val->setText(QString::number(res.phi0, 'f', 3));
+    m_kpiXdVal->setText(QString::number(res.Xd, 'f', 2));
 
     m_plotContact->setMaterialNames(m1.name + " (слева)", m2.name + " (справа)");
     m_plotContact->setBoundaryPositions(res.xd1, res.xd2);
@@ -275,10 +451,15 @@ void MainWindow::onCalculateClicked() {
     m_plotIsolated->setBoundaryPositions(0, 0);
     m_plotIsolated->setData(res.isolated_Ec, res.isolated_Ev, res.isolated_E0, res.isolated_Ef);
 
-    updateResultsTable(res);
+    m_plotBlocks->setMaterials(m1.name, m1.Eg, m1.chi, m1.isMetal,
+                               m2.name, m2.Eg, m2.chi, m2.isMetal);
+
+    m_plotPotential->setParams(res.xd1, res.xd2, res.qphi01, res.qphi02, res.phi0);
+
+    updateResultsUI(res);
 }
 
-void MainWindow::updateResultsTable(const CalculationResults& res) {
+void MainWindow::updateResultsUI(const CalculationResults& res) {
     struct RowData {
         QString desc;
         QString sym;
@@ -307,22 +488,41 @@ void MainWindow::updateResultsTable(const CalculationResults& res) {
 
     m_tableResults->setRowCount(rows.size());
     for (int i = 0; i < rows.size(); ++i) {
-        m_tableResults->setItem(i, 0, new QTableWidgetItem(rows[i].desc));
-        m_tableResults->setItem(i, 1, new QTableWidgetItem(rows[i].sym));
-        m_tableResults->setItem(i, 2, new QTableWidgetItem(rows[i].val));
-        m_tableResults->setItem(i, 3, new QTableWidgetItem(rows[i].unit));
+        QTableWidgetItem *itemDesc = new QTableWidgetItem(rows[i].desc);
+        QTableWidgetItem *itemSym = new QTableWidgetItem(rows[i].sym);
+        itemSym->setForeground(QColor("#7E749B"));
+        itemSym->setTextAlignment(Qt::AlignCenter);
+
+        QTableWidgetItem *itemVal = new QTableWidgetItem(rows[i].val);
+        itemVal->setForeground(QColor("#689F8F"));
+        itemVal->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        QFont valFont = itemVal->font();
+        valFont.setBold(true);
+        itemVal->setFont(valFont);
+
+        QTableWidgetItem *itemUnit = new QTableWidgetItem(rows[i].unit);
+        itemUnit->setForeground(QColor("#9A99A8"));
+
+        m_tableResults->setItem(i, 0, itemDesc);
+        m_tableResults->setItem(i, 1, itemSym);
+        m_tableResults->setItem(i, 2, itemVal);
+        m_tableResults->setItem(i, 3, itemUnit);
     }
 }
 
 void MainWindow::onExportPlotClicked() {
-    QString fileName = QFileDialog::getSaveFileName(this, "Сохранить график как изображение", "heterojunction_diagram.png", "Изображения (*.png *.jpg *.bmp)");
+    QString fileName = QFileDialog::getSaveFileName(this, "Сохранить изображение", "heterojunction_plot.png", "Изображения (*.png *.jpg *.bmp)");
     if (!fileName.isEmpty()) {
         int currentTab = m_tabPlots->currentIndex();
         if (currentTab == 0) {
             m_plotContact->saveImage(fileName);
-        } else {
+        } else if (currentTab == 1) {
             m_plotIsolated->saveImage(fileName);
+        } else if (currentTab == 2) {
+            m_plotBlocks->saveImage(fileName);
+        } else if (currentTab == 3) {
+            m_plotPotential->saveImage(fileName);
         }
-        QMessageBox::information(this, "Успех", "График успешно сохранен:\n" + fileName);
+        QMessageBox::information(this, "Экспорт", "Изображение успешно сохранено:\n" + fileName);
     }
 }

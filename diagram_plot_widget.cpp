@@ -14,8 +14,8 @@ DiagramPlotWidget::DiagramPlotWidget(QWidget *parent)
     : QWidget(parent)
 {
     setMouseTracking(true);
-    setMinimumSize(500, 380);
-    setStyleSheet("background-color: #FFFFFF;");
+    setMinimumSize(540, 420);
+    setStyleSheet("background-color: #1E1F26;");
 }
 
 void DiagramPlotWidget::setTitle(const QString& title) {
@@ -58,7 +58,8 @@ void DiagramPlotWidget::clear() {
 }
 
 void DiagramPlotWidget::saveImage(const QString& filePath) {
-    QPixmap pixmap(size());
+    QPixmap pixmap(size() * 2);
+    pixmap.setDevicePixelRatio(2.0);
     render(&pixmap);
     pixmap.save(filePath);
 }
@@ -93,31 +94,31 @@ void DiagramPlotWidget::paintEvent(QPaintEvent *event) {
     painter.setRenderHint(QPainter::Antialiasing, true);
     painter.setRenderHint(QPainter::TextAntialiasing, true);
 
-    painter.fillRect(rect(), Qt::white);
+    painter.fillRect(rect(), QColor("#1E1F26"));
 
-    double marginLeft = 65.0;
+    double marginLeft = 70.0;
     double marginRight = 35.0;
-    double marginTop = 50.0;
-    double marginBottom = 55.0;
+    double marginTop = 48.0;
+    double marginBottom = 52.0;
 
     QRectF plotRect(marginLeft, marginTop, width() - marginLeft - marginRight, height() - marginTop - marginBottom);
 
     if (plotRect.width() <= 10 || plotRect.height() <= 10) return;
 
-    QFont titleFont = painter.font();
+    QFont titleFont("Montserrat");
     titleFont.setPointSize(11);
     titleFont.setBold(true);
     painter.setFont(titleFont);
-    painter.setPen(QColor("#2C3E50"));
-    painter.drawText(QRectF(0, 8, width(), 30), Qt::AlignCenter, m_title);
+    painter.setPen(QColor("#EDEDF4"));
+    painter.drawText(QRectF(0, 10, width(), 26), Qt::AlignCenter, m_title);
 
     if (m_ec.isEmpty() && m_ev.isEmpty()) {
-        QFont emptyFont = painter.font();
-        emptyFont.setPointSize(10);
+        QFont emptyFont("Montserrat");
+        emptyFont.setPointSize(11);
         emptyFont.setItalic(true);
         painter.setFont(emptyFont);
-        painter.setPen(Qt::gray);
-        painter.drawText(plotRect, Qt::AlignCenter, "Нет данных для отображения.\nНажмите 'Рассчитать и построить'.");
+        painter.setPen(QColor("#6E6C78"));
+        painter.drawText(plotRect, Qt::AlignCenter, "Нет данных для отображения.\nНажмите 'Рассчитать и построить диаграммы'.");
         return;
     }
 
@@ -146,20 +147,51 @@ void DiagramPlotWidget::paintEvent(QPaintEvent *event) {
     yMin -= yRange * 0.08;
     yMax += yRange * 0.12;
 
-    painter.fillRect(plotRect, QColor("#FBFBFB"));
+    QLinearGradient bgGrad(plotRect.topLeft(), plotRect.bottomLeft());
+    bgGrad.setColorAt(0.0, QColor("#191A23"));
+    bgGrad.setColorAt(1.0, QColor("#14141D"));
+    painter.fillRect(plotRect, bgGrad);
 
     if (m_xd1 > 0.0 || m_xd2 > 0.0) {
         double px_d1 = toWidgetCoords(QPointF(-m_xd1, 0), plotRect, xMin, xMax, yMin, yMax).x();
         double px_d2 = toWidgetCoords(QPointF(m_xd2, 0), plotRect, xMin, xMax, yMin, yMax).x();
         QRectF scrRect(px_d1, plotRect.top(), px_d2 - px_d1, plotRect.height());
-        painter.fillRect(scrRect, QColor(255, 235, 205, 100)); 
 
-        painter.setPen(QPen(QColor(230, 126, 34, 180), 1.5, Qt::DashLine));
+        painter.fillRect(scrRect, QColor(104, 159, 143, 28));
+
+        painter.setPen(QPen(QColor("#689F8F"), 1.4, Qt::DashLine));
         painter.drawLine(QPointF(px_d1, plotRect.top()), QPointF(px_d1, plotRect.bottom()));
+
+        painter.setPen(QPen(QColor("#7E749B"), 1.4, Qt::DashLine));
         painter.drawLine(QPointF(px_d2, plotRect.top()), QPointF(px_d2, plotRect.bottom()));
+
+        QFont markFont("Montserrat");
+        markFont.setPointSize(8);
+        markFont.setBold(true);
+        painter.setFont(markFont);
+
+        painter.setPen(QColor("#689F8F"));
+        painter.drawText(QPointF(px_d1 - 45, plotRect.top() + 30), QString("-x_d1"));
+
+        painter.setPen(QColor("#7E749B"));
+        painter.drawText(QPointF(px_d2 + 8, plotRect.top() + 30), QString("+x_d2"));
     }
 
-    QFont axisFont = painter.font();
+    if (!m_ec.isEmpty() && !m_ev.isEmpty() && m_ec.size() == m_ev.size()) {
+        QPainterPath bandPath;
+        QPointF firstP = toWidgetCoords(m_ec.first(), plotRect, xMin, xMax, yMin, yMax);
+        bandPath.moveTo(firstP);
+        for (int i = 1; i < m_ec.size(); ++i) {
+            bandPath.lineTo(toWidgetCoords(m_ec[i], plotRect, xMin, xMax, yMin, yMax));
+        }
+        for (int i = m_ev.size() - 1; i >= 0; --i) {
+            bandPath.lineTo(toWidgetCoords(m_ev[i], plotRect, xMin, xMax, yMin, yMax));
+        }
+        bandPath.closeSubpath();
+        painter.fillPath(bandPath, QColor(100, 100, 115, 20));
+    }
+
+    QFont axisFont("Montserrat");
     axisFont.setPointSize(8);
     axisFont.setBold(false);
     painter.setFont(axisFont);
@@ -169,13 +201,14 @@ void DiagramPlotWidget::paintEvent(QPaintEvent *event) {
         double xVal = xMin + i * (xMax - xMin) / xTicks;
         double px = toWidgetCoords(QPointF(xVal, 0), plotRect, xMin, xMax, yMin, yMax).x();
 
-        painter.setPen(QPen(QColor("#E2E8F0"), 1, Qt::SolidLine));
+        painter.setPen(QPen(QColor("#2C2D38"), 1, Qt::SolidLine));
         painter.drawLine(QPointF(px, plotRect.top()), QPointF(px, plotRect.bottom()));
 
-        painter.setPen(QPen(QColor("#718096"), 1));
+        painter.setPen(QPen(QColor("#5A5968"), 1));
         painter.drawLine(QPointF(px, plotRect.bottom()), QPointF(px, plotRect.bottom() + 4));
 
         QString label = QString::number(xVal, 'f', 1);
+        painter.setPen(QColor("#9E9BAE"));
         painter.drawText(QRectF(px - 25, plotRect.bottom() + 6, 50, 15), Qt::AlignCenter, label);
     }
 
@@ -184,40 +217,45 @@ void DiagramPlotWidget::paintEvent(QPaintEvent *event) {
         double yVal = yMin + i * (yMax - yMin) / yTicks;
         double py = toWidgetCoords(QPointF(0, yVal), plotRect, xMin, xMax, yMin, yMax).y();
 
-        painter.setPen(QPen(QColor("#E2E8F0"), 1, Qt::SolidLine));
+        painter.setPen(QPen(QColor("#2C2D38"), 1, Qt::SolidLine));
         painter.drawLine(QPointF(plotRect.left(), py), QPointF(plotRect.right(), py));
 
-        painter.setPen(QPen(QColor("#718096"), 1));
+        painter.setPen(QPen(QColor("#5A5968"), 1));
         painter.drawLine(QPointF(plotRect.left() - 4, py), QPointF(plotRect.left(), py));
 
         QString label = QString::number(yVal, 'f', 2);
+        painter.setPen(QColor("#9E9BAE"));
         painter.drawText(QRectF(0, py - 8, marginLeft - 8, 16), Qt::AlignRight | Qt::AlignVCenter, label);
     }
 
     if (xMin <= 0.0 && xMax >= 0.0) {
         double px0 = toWidgetCoords(QPointF(0, 0), plotRect, xMin, xMax, yMin, yMax).x();
-        painter.setPen(QPen(QColor("#8E44AD"), 1.8, Qt::DashDotLine));
+        painter.setPen(QPen(QColor("#EDEDF4"), 1.8, Qt::DashDotLine));
         painter.drawLine(QPointF(px0, plotRect.top()), QPointF(px0, plotRect.bottom()));
 
-        painter.setPen(QColor("#8E44AD"));
-        painter.drawText(QPointF(px0 + 4, plotRect.top() + 15), "x = 0");
+        painter.setPen(QColor("#EDEDF4"));
+        painter.drawText(QPointF(px0 + 5, plotRect.top() + 16), "x = 0");
     }
 
-    painter.setPen(QPen(QColor("#A0AEC0"), 1.2));
+    painter.setPen(QPen(QColor("#3E3D4F"), 1.2));
     painter.drawRect(plotRect);
 
-    QFont matFont = painter.font();
+    QFont matFont("Montserrat");
     matFont.setPointSize(10);
     matFont.setBold(true);
     painter.setFont(matFont);
 
     if (!m_leftMaterial.isEmpty()) {
-        painter.setPen(QColor("#1F618D"));
-        painter.drawText(QRectF(plotRect.left() + 10, plotRect.top() + 8, 200, 20), Qt::AlignLeft, m_leftMaterial);
+        QRectF lRect(plotRect.left() + 10, plotRect.top() + 8, 200, 24);
+        painter.fillRect(lRect, QColor(30, 31, 38, 220));
+        painter.setPen(QColor("#689F8F"));
+        painter.drawText(lRect.adjusted(6, 0, 0, 0), Qt::AlignLeft | Qt::AlignVCenter, m_leftMaterial);
     }
     if (!m_rightMaterial.isEmpty()) {
-        painter.setPen(QColor("#922B21"));
-        painter.drawText(QRectF(plotRect.right() - 210, plotRect.top() + 8, 200, 20), Qt::AlignRight, m_rightMaterial);
+        QRectF rRect(plotRect.right() - 210, plotRect.top() + 8, 200, 24);
+        painter.fillRect(rRect, QColor(30, 31, 38, 220));
+        painter.setPen(QColor("#7E749B"));
+        painter.drawText(rRect.adjusted(0, 0, -6, 0), Qt::AlignRight | Qt::AlignVCenter, m_rightMaterial);
     }
 
     auto drawCurve = [&](const QVector<QPointF>& pts, const QPen& pen) {
@@ -237,21 +275,18 @@ void DiagramPlotWidget::paintEvent(QPaintEvent *event) {
         painter.drawPath(path);
     };
 
-    drawCurve(m_e0, QPen(QColor("#27AE60"), 2.2, Qt::SolidLine));
+    drawCurve(m_e0, QPen(QColor("#7E749B"), 2.2, Qt::SolidLine));
+    drawCurve(m_ec, QPen(QColor("#E67E22"), 2.6, Qt::SolidLine));
+    drawCurve(m_ev, QPen(QColor("#2980B9"), 2.6, Qt::SolidLine));
+    drawCurve(m_ef, QPen(QColor("#F1C40F"), 2.0, Qt::DashLine));
 
-    drawCurve(m_ec, QPen(QColor("#E74C3C"), 2.5, Qt::SolidLine));
-
-    drawCurve(m_ev, QPen(QColor("#2980B9"), 2.5, Qt::SolidLine));
-
-    drawCurve(m_ef, QPen(QColor("#2C3E50"), 2.0, Qt::DashLine));
-
-    QFont labelFont = painter.font();
+    QFont labelFont("Montserrat");
     labelFont.setPointSize(9);
     labelFont.setBold(true);
     painter.setFont(labelFont);
-    painter.setPen(QColor("#2D3748"));
+    painter.setPen(QColor("#C7C5D8"));
 
-    painter.drawText(QRectF(plotRect.left(), height() - marginBottom + 26, plotRect.width(), 20), Qt::AlignCenter, "Координата x, нм");
+    painter.drawText(QRectF(plotRect.left(), height() - marginBottom + 24, plotRect.width(), 20), Qt::AlignCenter, "Координата x, нм");
 
     painter.save();
     painter.translate(14, plotRect.top() + plotRect.height() / 2);
@@ -259,48 +294,51 @@ void DiagramPlotWidget::paintEvent(QPaintEvent *event) {
     painter.drawText(QRectF(-100, -10, 200, 20), Qt::AlignCenter, "Энергия E, эВ");
     painter.restore();
 
-    QRectF legRect(plotRect.right() - 170, plotRect.bottom() - 105, 160, 95);
-    painter.fillRect(legRect, QColor(255, 255, 255, 220));
-    painter.setPen(QPen(QColor("#CBD5E0"), 1));
-    painter.drawRect(legRect);
+    QRectF legRect(plotRect.right() - 180, plotRect.bottom() - 115, 170, 105);
+    painter.fillRect(legRect, QColor(30, 31, 38, 240));
+    painter.setPen(QPen(QColor("#3B3C48"), 1));
+    painter.drawRoundedRect(legRect, 6, 6);
 
     auto drawLegendItem = [&](double yOffset, const QColor& col, Qt::PenStyle style, const QString& text) {
-        painter.setPen(QPen(col, 2.0, style));
-        painter.drawLine(QPointF(legRect.left() + 8, legRect.top() + yOffset),
+        painter.setPen(QPen(col, 2.5, style));
+        painter.drawLine(QPointF(legRect.left() + 10, legRect.top() + yOffset),
                          QPointF(legRect.left() + 28, legRect.top() + yOffset));
-        painter.setPen(QColor("#2D3748"));
-        QFont f = painter.font();
+        painter.setPen(QColor("#EDEDF4"));
+        QFont f("Montserrat");
         f.setPointSize(8);
         f.setBold(false);
         painter.setFont(f);
         painter.drawText(QPointF(legRect.left() + 35, legRect.top() + yOffset + 4), text);
     };
 
-    drawLegendItem(18, QColor("#E74C3C"), Qt::SolidLine, "E_c (зона провод.)");
-    drawLegendItem(38, QColor("#2980B9"), Qt::SolidLine, "E_v (валентн. зона)");
-    drawLegendItem(58, QColor("#27AE60"), Qt::SolidLine, "E_0 (уров. вакуума)");
-    drawLegendItem(78, QColor("#2C3E50"), Qt::DashLine,  "E_F (уров. Ферми)");
+    drawLegendItem(18, QColor("#E67E22"), Qt::SolidLine, "E_c (зона провод.)");
+    drawLegendItem(42, QColor("#2980B9"), Qt::SolidLine, "E_v (валентн. зона)");
+    drawLegendItem(66, QColor("#7E749B"), Qt::SolidLine, "E_0 (уров. вакуума)");
+    drawLegendItem(90, QColor("#F1C40F"), Qt::DashLine,  "E_F (уров. Ферми)");
 
     if (m_hasHover && plotRect.contains(m_mousePos)) {
         QPointF dataCoord = toDataCoords(m_mousePos, plotRect, xMin, xMax, yMin, yMax);
 
-        painter.setPen(QPen(QColor(100, 100, 100, 140), 1, Qt::DotLine));
+        painter.setPen(QPen(QColor(120, 120, 135, 140), 1, Qt::DotLine));
         painter.drawLine(QPointF(m_mousePos.x(), plotRect.top()), QPointF(m_mousePos.x(), plotRect.bottom()));
         painter.drawLine(QPointF(plotRect.left(), m_mousePos.y()), QPointF(plotRect.right(), m_mousePos.y()));
 
-        QString coordText = QString("x: %1 нм, E: %2 эВ")
+        QString coordText = QString("x: %1 нм | E: %2 эВ")
                                 .arg(QString::number(dataCoord.x(), 'f', 2))
                                 .arg(QString::number(dataCoord.y(), 'f', 3));
 
-        QFont tipFont = painter.font();
+        QFont tipFont("Montserrat");
         tipFont.setPointSize(8);
         painter.setFont(tipFont);
-        QRect tipRect(m_mousePos.x() + 10, m_mousePos.y() - 25, 140, 20);
-        if (tipRect.right() > plotRect.right()) tipRect.moveLeft(m_mousePos.x() - 150);
-        if (tipRect.top() < plotRect.top()) tipRect.moveTop(m_mousePos.y() + 10);
+        QRect tipRect(m_mousePos.x() + 12, m_mousePos.y() - 26, 148, 24);
+        if (tipRect.right() > plotRect.right()) tipRect.moveLeft(m_mousePos.x() - 156);
+        if (tipRect.top() < plotRect.top()) tipRect.moveTop(m_mousePos.y() + 12);
 
-        painter.fillRect(tipRect, QColor(40, 40, 40, 220));
-        painter.setPen(Qt::white);
+        painter.fillRect(tipRect, QColor(48, 49, 58, 245));
+        painter.setPen(QPen(QColor("#689F8F"), 1.2));
+        painter.drawRoundedRect(tipRect, 4, 4);
+
+        painter.setPen(QColor("#EDEDF4"));
         painter.drawText(tipRect, Qt::AlignCenter, coordText);
     }
 }
